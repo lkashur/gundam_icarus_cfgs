@@ -613,8 +613,10 @@ int main(int argc, char** argv){
           // Take into account the finite amount of event in MC
           xsec.samplePtr->getMcContainer().throwEventMcError();
         }
+        // JK: throwEventMcError() already treated each MC entry as Poisson event
+        //     we don't want to throw again on weighted MC histogram
         // Asimov bin content -> toy data
-        xsec.samplePtr->getMcContainer().throwStatError();
+        //xsec.samplePtr->getMcContainer().throwStatError();
       }
     }
 
@@ -719,7 +721,7 @@ int main(int argc, char** argv){
 
   LogInfo << "Generating xsec sample plots..." << std::endl;
   // manual trigger to tweak the error bars
-  propagator.getPlotGenerator().generateSampleHistograms();
+  propagator.getPlotGenerator().generateSampleHistograms( GenericToolbox::mkdirTFile(calcXsecDir, "plots/histograms") );
 
   for( auto& histHolder : propagator.getPlotGenerator().getHistHolderList(0) ){
     if( not histHolder.isData ){ continue; } // only data will print errors
