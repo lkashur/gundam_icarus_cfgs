@@ -31,6 +31,11 @@ namespace JointProbability {
       for( int iBin = 1 ; iBin <= nBins ; iBin++ ){ out += this->eval(sample_, iBin); }
       return out;
     }
+
+    virtual double eval(std::vector<Sample> vec_samples){
+      return 0;
+    }
+
   };
 
   class JointProbabilityPlugin : public JointProbability{
@@ -60,6 +65,10 @@ namespace JointProbability {
 
   class PoissonLLH : public JointProbability{
     double eval(const Sample& sample_, int bin_) override;
+  };
+
+  class StatCovariance : public JointProbability{
+    double eval(std::vector<Sample> vec_samples) override;
   };
 
   /// Evaluate the Least Squares difference between the expected and observed.

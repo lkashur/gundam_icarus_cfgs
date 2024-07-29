@@ -335,6 +335,16 @@ namespace JointProbability{
       // LLH calculation
       return 2.0 * (predVal - dataVal + dataVal * TMath::Log(dataVal / predVal));
   }
+  // StatCovariance
+  double StatCovariance::eval(std::vector<Sample> vec_samples){
+
+    // write
+
+    double this_chi2 = 0.;
+
+    return this_chi2;
+
+  };
 
   // LeastSquaresLLH
   void LeastSquaresLLH::readConfigImpl(){

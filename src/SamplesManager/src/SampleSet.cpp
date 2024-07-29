@@ -51,6 +51,7 @@ void SampleSet::readConfigImpl(){
   else if( llhMethod == "BarlowLLH_BANFF_OA2021" ) { _jointProbabilityPtr_ = std::make_shared<JointProbability::BarlowLLH_BANFF_OA2021>(); }
   else if( llhMethod == "LeastSquares" ) { _jointProbabilityPtr_ = std::make_shared<JointProbability::LeastSquaresLLH>(); }
   else if( llhMethod == "BarlowLLH_BANFF_OA2021_SFGD" ) {  _jointProbabilityPtr_ = std::make_shared<JointProbability::BarlowLLH_BANFF_OA2021_SFGD>(); }
+  else if ( llhMethod == "StatCovariance" ) { _jointProbabilityPtr_ = std::make_shared<JointProbability::StatCovariance>();  }
   else{ LogThrow("Unknown LLH Method: " << llhMethod); }
 
   _jointProbabilityPtr_->readConfig(configJointProbability);
