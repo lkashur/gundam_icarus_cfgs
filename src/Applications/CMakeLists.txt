@@ -5,6 +5,7 @@ set( APPLICATION_LIST
     gundamFitter
     gundamFitReader
     gundamCalcXsec
+    gundamToyGenerator
     gundamFitCompare
     gundamInputZipper
     gundamConfigCompare
@@ -79,6 +80,7 @@ target_link_libraries( gundamConfigUnfolder GundamUtils )
 target_link_libraries( gundamConfigCompare GundamUtils )
 target_link_libraries( gundamPlotExtractor GundamUtils )
 target_link_libraries( gundamCalcXsec GundamPropagator )
+target_link_libraries( gundamToyGenerator GundamPropagator )
 
 if( WITH_GUNDAM_ROOT_APP )
 #target_sources( gundamRoot PRIVATE G__GundamRootDict.cxx )
