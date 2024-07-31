@@ -606,6 +606,8 @@ int main(int argc, char** argv){
           // Take into account the finite amount of event in MC
           xsec.samplePtr->getMcContainer().throwEventMcError();
         }
+        // JK: throwEventMcError() already treated each MC entry as Poisson event
+        //     we don't want to throw again on weighted MC histogram
         // Asimov bin content -> toy data
         xsec.samplePtr->getMcContainer().throwStatError();
       }
