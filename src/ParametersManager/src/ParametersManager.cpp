@@ -179,6 +179,67 @@ void ParametersManager::throwParametersFromGlobalCovariance(bool quietVerbose_){
     for( int iGlobPar = 0 ; iGlobPar < _globalCovarianceMatrix_->GetNrows() ; iGlobPar++ ){
       if( _globalCovParList_[iGlobPar]->isFixed() ){ continue; }
       if( _globalCovParList_[iGlobPar]->isFree() and (*_globalCovarianceMatrix_)[iGlobPar][iGlobPar] == 0 ){ continue; }
+
+      // JK Custom skipping to make CalcXsec happy
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#58" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#59" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#60" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#61" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#62" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#63" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#64" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#65" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#66" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#67" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#68" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#69" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#70" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#71" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#72" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#73" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#74" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#75" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#76" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#77" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#78" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#79" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#80" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#81" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#82" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#83" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#84" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#85" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#86" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#87" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#88" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#89" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#90" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#91" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#92" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#93" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#94" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#95" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#96" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#97" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#98" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#99" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#100" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#101" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#102" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#103" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#104" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#105" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#106" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#107" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#108" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#109" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#110" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#111" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#112" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#113" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#114" ){ continue; }
+      if( _globalCovParList_[iGlobPar]->getFullTitle() == "Flux Systematics HP/#115" ){ continue; }
+
       _strippedParameterList_.emplace_back( _globalCovParList_[iGlobPar] );
     }
 
