@@ -112,8 +112,13 @@ double LikelihoodInterface::evalLikelihood() const {
 }
 double LikelihoodInterface::evalStatLikelihood() const {
   _buffer_.statLikelihood = 0.;
-  for( auto &sample: _dataSetManager_.getPropagator().getSampleSet().getSampleList()){
-    _buffer_.statLikelihood += this->evalStatLikelihood( sample );
+  if( _jointProbabilityPtr_->getType()=="StatCovariance" ){
+    _buffer_.statLikelihood += _jointProbabilityPtr_->eval( _dataSetManager_.getPropagator().getSampleSet().getSampleList() );
+  }
+  else{
+    for( auto &sample: _dataSetManager_.getPropagator().getSampleSet().getSampleList()){
+      _buffer_.statLikelihood += this->evalStatLikelihood( sample );
+    }
   }
   return _buffer_.statLikelihood;
 }

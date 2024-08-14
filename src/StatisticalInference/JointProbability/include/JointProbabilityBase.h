@@ -29,6 +29,11 @@ namespace JointProbability{
       return out;
     }
 
+    // For StatCovariance
+    [[nodiscard]] virtual double eval(const std::vector<Sample>& vec_samples) const {
+      return 0;
+    }
+
   };
 }
 

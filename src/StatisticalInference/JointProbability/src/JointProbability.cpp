@@ -11,6 +11,7 @@
 #include "BarlowBeestonBanff2020.h"
 #include "BarlowBeestonBanff2022.h"
 #include "BarlowBeestonBanff2022Sfgd.h"
+#include "StatCovariance.h"
 
 #include "Logger.h"
 
@@ -64,6 +65,9 @@ namespace JointProbability{
         break;
       case JointProbabilityType::BarlowLLH_BANFF_OA2021_SFGD:
         out = std::make_unique<BarlowBeestonBanff2022Sfgd>();
+        break;
+      case JointProbabilityType::StatCovariance:
+        out = std::make_unique<StatCovariance>();
         break;
       default:
         LogThrow( "Unknown JointProbabilityType: " << type_.toString() );

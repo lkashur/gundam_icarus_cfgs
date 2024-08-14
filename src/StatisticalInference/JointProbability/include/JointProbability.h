@@ -22,7 +22,8 @@
   ENUM_FIELD( BarlowLLH_BANFF_OA2021 ) \
   ENUM_FIELD( BarlowLLH_BANFF_OA2021_SFGD ) \
   ENUM_FIELD( Chi2 ) \
-  ENUM_FIELD( Plugin )
+  ENUM_FIELD( Plugin ) \
+  ENUM_FIELD( StatCovariance )
 #include "GenericToolbox.MakeEnum.h"
 
 namespace JointProbability{
