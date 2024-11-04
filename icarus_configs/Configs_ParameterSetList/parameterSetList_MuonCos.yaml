@@ -1,0 +1,35 @@
+# Template
+
+- name: Template Parameter MuonCos
+  isEnabled: true
+
+  printDialSetsSummary: true
+
+  nominalStepSize: 0.1
+  useOnlyOneParameterPerEvent: true
+
+  dialSetDefinitions:
+    - name: Template Parameter MuonCos dialSetDefinitions
+      applyOnDataSets: ["ICARUSNuMI_1muNp0pi_Reco_Dataset"]
+      parametersBinningPath: "./binnings/binning_TrueMuonCos.txt"
+      applyCondition: "[IsSignal] == 1"
+      printDialsSummary: true
+
+
+# x-sec
+
+- name: Cross section Systematics
+  isEnabled: true
+
+  printDialSetsSummary: true
+
+  releaseFixedParametersOnHesse: true
+  covarianceMatrixFilePath: ./Configs_ParameterSet/GENIEDials/gundaminput_geniesyst.root
+  covarianceMatrixTMatrixD: xsec_cov
+  parameterPriorTVectorD: xsec_param_prior
+  parameterNameTObjArray: xsec_param_names
+  parameterLowerBoundsTVectorD: xsec_param_lb
+  parameterUpperBoundsTVectorD: xsec_param_ub
+
+  parameterDefinitions: "./Configs_ParameterSet/GENIEDials/GENIEDialsDef.yaml"
+

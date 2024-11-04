@@ -1,0 +1,25 @@
+- name: "ICARUSNuMI_1muNp0pi_Reco_Dataset"
+
+  isEnabled: true
+
+  selectedDataEntry: "SignalLinearScale"
+
+  showSelectedEventCount: true
+
+  mc:
+    tree: "SelectedEvents_NSigmas"
+    filePathList:
+      - "/exp/icarus/app/users/jskim/icarus_gundam/v09_75_03/srcs/sbnana/sbnana/SBNAna/icarus_gundam/output.root"
+    nominalWeightFormula: "(1.)"
+
+  data:
+    - name: "ReuseMC"
+      tree: "SelectedEvents_NSigmas"
+      nominalWeightFormula: "(1.)"
+      filePathList:
+        - "/exp/icarus/app/users/jskim/icarus_gundam/v09_75_03/srcs/sbnana/sbnana/SBNAna/icarus_gundam/output.root"
+    - name: "SignalLinearScale"
+      tree: "SelectedEvents_NSigmas"
+      nominalWeightFormula: "(IsSignal==1 ? 0.2/2.0 * (TrueMuonCos-1.0) + 1.2 : 1.0)"
+      filePathList:
+        - "/exp/icarus/app/users/jskim/icarus_gundam/v09_75_03/srcs/sbnana/sbnana/SBNAna/icarus_gundam/output.root"
