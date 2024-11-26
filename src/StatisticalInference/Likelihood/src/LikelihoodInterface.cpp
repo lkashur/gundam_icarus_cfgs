@@ -2,6 +2,8 @@
 // Created by Clark McGrew 24/1/23
 //
 
+#include "StatCovariance.h"
+
 #include "LikelihoodInterface.h"
 #include "GundamGlobals.h"
 
@@ -113,6 +115,12 @@ double LikelihoodInterface::evalLikelihood() const {
 double LikelihoodInterface::evalStatLikelihood() const {
   _buffer_.statLikelihood = 0.;
   if( _jointProbabilityPtr_->getType()=="StatCovariance" ){
+
+    std::shared_ptr<JointProbability::StatCovariance> statCovPtr = std::dynamic_pointer_cast<JointProbability::StatCovariance>(_jointProbabilityPtr_);
+    if(not statCovPtr->_isInitialized){
+      statCovPtr->fillEventPtrs( _dataSetManager_.getPropagator().getSampleSet().getSampleList() );
+    }
+
     _buffer_.statLikelihood += _jointProbabilityPtr_->eval( _dataSetManager_.getPropagator().getSampleSet().getSampleList() );
   }
   else{

@@ -10,6 +10,7 @@
 #include "GenericToolbox.Json.h"
 #include "GenericToolbox.Root.h"
 #include "GenericToolbox.Utils.h"
+#include "GenericToolbox.Map.h"
 
 #include <TFile.h>
 #include "TH1D.h"
@@ -39,6 +40,9 @@ int main(int argc, char** argv){
   clParser.addOption("configFile", {"-c", "--config-file"}, "Specify path to the fitter config file");
   clParser.addOption("fitterFile", {"-f"}, "Specify the fitter output file");
   clParser.addOption("outputFile", {"-o", "--out-file"}, "Specify the CalcXsec output file");
+  clParser.addOption("useDataEntry", {"--use-data-entry"}, "Overrides \"selectedDataEntry\" in dataSet config. Second arg is to select a given dataset");
+  clParser.addOption("fitSampleSetConfig", {"--fitsample-config"}, "override fitSampleSetConfig");
+  clParser.addOption("plotGeneratorConfig", {"--plot-config"}, "override plotGeneratorConfig");
   clParser.addOption("nbThreads", {"-t", "--nb-threads"}, "Specify nb of parallel threads");
   clParser.addOption("nToys", {"-n"}, "Specify number of toys");
   clParser.addOption("randomSeed", {"-s", "--seed"}, "Set random seed");
@@ -121,6 +125,23 @@ int main(int argc, char** argv){
   // Defining signal samples
   JsonType xsecConfig{ ConfigUtils::readConfigFile( clParser.getOptionVal<std::string>("configFile") ) };
   cHandler.override( xsecConfig );
+
+  if( clParser.isOptionTriggered("fitSampleSetConfig") ){
+    JsonType fitSampleSetConfig_new{ ConfigUtils::readConfigFile( clParser.getOptionVal<std::string>("fitSampleSetConfig") ) };
+    cHandler.getConfig()["fitterEngineConfig"]["likelihoodInterfaceConfig"]["dataSetManagerConfig"]["propagatorConfig"]["fitSampleSetConfig"]["fitSampleList"] = fitSampleSetConfig_new["fitSampleList"];
+  }
+  if( clParser.isOptionTriggered("plotGeneratorConfig") ){
+    std::vector< std::string > plotConfigKeysToCopy = {
+      "varDictionnaries",
+      "histogramsDefinition",
+      "canvasParameters",
+    };
+    JsonType plotGeneratorConfig_new{ ConfigUtils::readConfigFile( clParser.getOptionVal<std::string>("plotGeneratorConfig") ) };
+    for(const auto& k: plotConfigKeysToCopy){
+      cHandler.getConfig()["fitterEngineConfig"]["likelihoodInterfaceConfig"]["dataSetManagerConfig"]["propagatorConfig"]["plotGeneratorConfig"][k] = plotGeneratorConfig_new[k];
+    }
+  }
+
   LogInfo << "Override done." << std::endl;
 
 
@@ -137,6 +158,21 @@ int main(int argc, char** argv){
 
   // Disabling eigen decomposed parameters
   dataSetManager.getPropagator().setEnableEigenToOrigInPropagate( false );
+
+  // --use-data-entry
+  if( clParser.isOptionTriggered("useDataEntry") ){
+    auto selectedDataEntry = clParser.getOptionVal<std::string>("useDataEntry", 0);
+    // Do something better in case multiple datasets are defined
+    bool isFound{false};
+    for( auto& dataSet : dataSetManager.getDataSetList() ){
+      if( GenericToolbox::isIn( selectedDataEntry, dataSet.getDataDispenserDict() ) ){
+        LogWarning << "Using data entry \"" << selectedDataEntry << "\" for dataset: " << dataSet.getName() << std::endl;
+        dataSet.setSelectedDataEntry( selectedDataEntry ); 
+        isFound = true;
+      } 
+    }
+    LogThrowIf(not isFound, "Could not find data entry \"" << selectedDataEntry << "\" among defined data sets");
+  } 
 
   // Sample binning using parameterSetName
   for( auto& sample : dataSetManager.getPropagator().getSampleSet().getSampleList() ){
@@ -609,7 +645,7 @@ int main(int argc, char** argv){
         // JK: throwEventMcError() already treated each MC entry as Poisson event
         //     we don't want to throw again on weighted MC histogram
         // Asimov bin content -> toy data
-        xsec.samplePtr->getMcContainer().throwStatError();
+        //xsec.samplePtr->getMcContainer().throwStatError();
       }
     }
 
