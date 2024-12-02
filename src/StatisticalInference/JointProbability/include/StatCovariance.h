@@ -5,6 +5,7 @@
 #include "TMatrixTSym.h"
 #include <TDecompSVD.h>
 #include "TFile.h"
+#include "Logger.h"
 
 namespace JointProbability{
 
@@ -15,7 +16,7 @@ namespace JointProbability{
 
     bool _isInitialized{false};
     int _nTotalBins;
-    std::vector<int> _sampleIndicesForEachBin;
+    std::vector<int> _samplepairIndicesForEachBin;
     std::vector<int> _localBinIndicesForEachBin;
 
     std::vector< std::vector< std::vector<Event*> > > _arr_DataPtrs;
@@ -24,18 +25,18 @@ namespace JointProbability{
     TMatrixTSym<double> Cov_Data_Nominal;
     TMatrixTSym<double> Cov_MC_Nominal;
 
-    void fillEventPtrs(const std::vector<Sample>& vec_samples){
+    void fillEventPtrs(const std::vector<SamplePair>& vec_samplepairs){
 
       // Binning
-      int NBinsForEachSample[vec_samples.size()];
-      for(unsigned int i_sample=0; i_sample<vec_samples.size(); i_sample++){
-        NBinsForEachSample[i_sample] = vec_samples[i_sample].getDataContainer().getHistogram().binList.size();
-        _nTotalBins += NBinsForEachSample[i_sample];
+      int NBinsForEachSamplePair[vec_samplepairs.size()];
+      for(unsigned int i_samplepair=0; i_samplepair<vec_samplepairs.size(); i_samplepair++){
+        NBinsForEachSamplePair[i_samplepair] = vec_samplepairs[i_samplepair].data->getHistogram().getBinContentList().size();
+        _nTotalBins += NBinsForEachSamplePair[i_samplepair];
       }
 
-      for(unsigned int i_sample=0; i_sample<vec_samples.size(); i_sample++){
-        for(int i = 0; i < NBinsForEachSample[i_sample]; ++i) {
-          _sampleIndicesForEachBin.push_back( i_sample );
+      for(unsigned int i_samplepair=0; i_samplepair<vec_samplepairs.size(); i_samplepair++){
+        for(int i = 0; i < NBinsForEachSamplePair[i_samplepair]; ++i) {
+          _samplepairIndicesForEachBin.push_back( i_samplepair );
           _localBinIndicesForEachBin.push_back( i );
         }
       }
@@ -49,20 +50,20 @@ namespace JointProbability{
 
       for(unsigned int idx_global_i=0; idx_global_i<_nTotalBins; idx_global_i++){
 
-        int idx_sample_i = _sampleIndicesForEachBin[idx_global_i];
-        const auto& sample_i = vec_samples[idx_sample_i];
+        int idx_samplepair_i = _samplepairIndicesForEachBin[idx_global_i];
+        const auto& samplepair_i = vec_samplepairs[idx_samplepair_i];
         int idx_local_i = _localBinIndicesForEachBin[idx_global_i];
 
-        std::vector<Event*> vec_DataEvtList_i = sample_i.getDataContainer().getHistogram().binList[idx_local_i].eventPtrList;
-        std::vector<Event*> vec_MCEvtList_i = sample_i.getMcContainer().getHistogram().binList[idx_local_i].eventPtrList;
+        std::vector<Event*> vec_DataEvtList_i = samplepair_i.data->getHistogram().getBinContextList()[idx_local_i].eventPtrList;
+        std::vector<Event*> vec_MCEvtList_i = samplepair_i.model->getHistogram().getBinContextList()[idx_local_i].eventPtrList;
 
         for(unsigned int idx_global_j=idx_global_i; idx_global_j<_nTotalBins; idx_global_j++){
 
-          const auto& sample_j = vec_samples[ _sampleIndicesForEachBin[idx_global_j] ];
+          const auto& samplepair_j = vec_samplepairs[ _samplepairIndicesForEachBin[idx_global_j] ];
           int idx_local_j = _localBinIndicesForEachBin[idx_global_j];
 
-          std::vector<Event*> vec_DataEvtList_j = sample_j.getDataContainer().getHistogram().binList[idx_local_j].eventPtrList;
-          std::vector<Event*> vec_MCEvtList_j = sample_j.getMcContainer().getHistogram().binList[idx_local_j].eventPtrList;
+          std::vector<Event*> vec_DataEvtList_j = samplepair_j.data->getHistogram().getBinContextList()[idx_local_j].eventPtrList;
+          std::vector<Event*> vec_MCEvtList_j = samplepair_j.model->getHistogram().getBinContextList()[idx_local_j].eventPtrList;
 
           // Data
           for(Event* EvtList_i: vec_DataEvtList_i){
@@ -97,8 +98,8 @@ namespace JointProbability{
 
       for(unsigned int idx_global_i=0; idx_global_i<_nTotalBins; idx_global_i++){
 
-        int idx_sample_i = _sampleIndicesForEachBin[idx_global_i];
-        const auto& sample_i = vec_samples[idx_sample_i];
+        int idx_samplepair_i = _samplepairIndicesForEachBin[idx_global_i];
+        const auto& samplepair_i = vec_samplepairs[idx_samplepair_i];
         int idx_local_i = _localBinIndicesForEachBin[idx_global_i];
 
         for(unsigned int idx_global_j=idx_global_i; idx_global_j<_nTotalBins; idx_global_j++){
@@ -126,59 +127,23 @@ namespace JointProbability{
     }
 
     // For StatCovariance
-    [[nodiscard]] virtual double eval(const std::vector<Sample>& vec_samples) const override {
+    [[nodiscard]] virtual double eval(const std::vector<SamplePair>& vec_samplepairs) const override {
 
       bool DoDebug = false;
 
       LogThrowIf(!_isInitialized, "StatCovariance is not initialized");
-/*
-      TMatrixTSym<double> Cov_Data(_nTotalBins);
-      Cov_Data.Zero(); // Make sure it is initialized to zero
 
-      TMatrixTSym<double> Cov_MC(_nTotalBins);
-      Cov_MC.Zero(); // Make sure it is initialized to zero
-*/
       double DataArr[_nTotalBins];
       double MCArr[_nTotalBins];
-/*
-      for(unsigned int idx_global_i=0; idx_global_i<_nTotalBins; idx_global_i++){
-
-        int idx_sample_i = _sampleIndicesForEachBin[idx_global_i];
-        const auto& sample_i = vec_samples[idx_sample_i];
-        int idx_local_i = _localBinIndicesForEachBin[idx_global_i];
-
-        DataArr[idx_global_i] = sample_i.getDataContainer().getHistogram().binList[idx_local_i].content;
-        MCArr[idx_global_i] = sample_i.getMcContainer().getHistogram().binList[idx_local_i].content;
-
-        for(unsigned int idx_global_j=idx_global_i; idx_global_j<_nTotalBins; idx_global_j++){
-          // Data
-          double DataBinContent = 0.;
-          for(Event* EvtList_i: _arr_DataPtrs[idx_global_i][idx_global_j]){
-            DataBinContent += EvtList_i->getEventWeight();
-          }
-          Cov_Data(idx_global_i, idx_global_j) = DataBinContent;
-          Cov_Data(idx_global_j, idx_global_i) = DataBinContent;
-          // MC
-          double MCBinContent = 0.;
-          for(Event* EvtList_i: _arr_MCPtrs[idx_global_i][idx_global_j]){
-            // We need to take the stat of the raw-MC events, not on the weighted sum;
-            // so it is squared
-            MCBinContent += EvtList_i->getEventWeight() * EvtList_i->getEventWeight();
-          }
-          Cov_MC(idx_global_i, idx_global_j) = MCBinContent;
-          Cov_MC(idx_global_j, idx_global_i) = MCBinContent;
-        }
-      } // done constructin covariance
-*/
 
       for(unsigned int idx_global_i=0; idx_global_i<_nTotalBins; idx_global_i++){
 
-        int idx_sample_i = _sampleIndicesForEachBin[idx_global_i];
-        const auto& sample_i = vec_samples[idx_sample_i];
+        int idx_samplepair_i = _samplepairIndicesForEachBin[idx_global_i];
+        const auto& samplepair_i = vec_samplepairs[idx_samplepair_i];
         int idx_local_i = _localBinIndicesForEachBin[idx_global_i];
 
-        DataArr[idx_global_i] = sample_i.getDataContainer().getHistogram().binList[idx_local_i].content;
-        MCArr[idx_global_i] = sample_i.getMcContainer().getHistogram().binList[idx_local_i].content;
+        DataArr[idx_global_i] = samplepair_i.data->getHistogram().getBinContentList()[idx_local_i].sumWeights;
+        MCArr[idx_global_i] = samplepair_i.model->getHistogram().getBinContentList()[idx_local_i].sumWeights;
 
       }
 
@@ -297,7 +262,7 @@ namespace JointProbability{
       }
       return chi2;
 
-    } // END eval(std::vector<Sample> vec_samples)
+    }
 
   };
 

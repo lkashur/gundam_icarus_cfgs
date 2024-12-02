@@ -2,6 +2,7 @@
 #include "GundamGlobals.h"
 #include "GundamApp.h"
 #include "GundamUtils.h"
+#include "RootUtils.h"
 #include "FitterEngine.h"
 #include "ConfigUtils.h"
 
@@ -79,8 +80,8 @@ int main(int argc, char** argv){
     gRandom->SetSeed(seed);
   }
 
-  GundamGlobals::getParallelWorker().setNThreads( clParser.getOptionVal("nbThreads", 1) );
-  LogInfo << "Running the fitter with " << GundamGlobals::getParallelWorker().getNbThreads() << " parallel threads." << std::endl;
+  GundamGlobals::setNumberOfThreads( clParser.getOptionVal("nbThreads", 1) );
+  LogInfo << "Running the fitter with " << GundamGlobals::getNbCpuThreads() << " parallel threads." << std::endl;
 
   // Reading fitter file
   std::string fitterFile{clParser.getOptionVal<std::string>("fitterFile")};
@@ -92,9 +93,9 @@ int main(int argc, char** argv){
     fitterRootFile = std::unique_ptr<TFile>( TFile::Open( fitterFile.c_str() ) );
     LogThrowIf( fitterRootFile == nullptr, "Could not open fitter output file." );
 
-    ObjectReader::throwIfNotFound = true;
+    RootUtils::ObjectReader::throwIfNotFound = true;
 
-    ObjectReader::readObject<TNamed>(fitterRootFile.get(), {{"gundam/config_TNamed"}, {"gundamFitter/unfoldedConfig_TNamed"}}, [&](TNamed* config_){
+    RootUtils::ObjectReader::readObject<TNamed>(fitterRootFile.get(), {{"gundam/config_TNamed"}, {"gundamFitter/unfoldedConfig_TNamed"}}, [&](TNamed* config_){
       fitterConfig = GenericToolbox::Json::readConfigJsonStr( config_->GetTitle() );
     });
   }
@@ -111,14 +112,14 @@ int main(int argc, char** argv){
 
   // Disabling defined fit samples:
   LogInfo << "Removing defined samples..." << std::endl;
-  ConfigUtils::clearEntry( cHandler.getConfig(), "fitterEngineConfig/likelihoodInterfaceConfig/dataSetManagerConfig/propagatorConfig/sampleSetConfig/sampleList" );
-  ConfigUtils::clearEntry( cHandler.getConfig(), "fitterEngineConfig/likelihoodInterfaceConfig/dataSetManagerConfig/propagatorConfig/fitSampleSetConfig/fitSampleList" );
-  ConfigUtils::clearEntry( cHandler.getConfig(), "fitterEngineConfig/propagatorConfig/fitSampleSetConfig/fitSampleList" );
+  GenericToolbox::Json::clearEntry( cHandler.getConfig(), "fitterEngineConfig/likelihoodInterfaceConfig/dataSetManagerConfig/propagatorConfig/sampleSetConfig/sampleList" );
+  GenericToolbox::Json::clearEntry( cHandler.getConfig(), "fitterEngineConfig/likelihoodInterfaceConfig/dataSetManagerConfig/propagatorConfig/fitSampleSetConfig/fitSampleList" );
+  GenericToolbox::Json::clearEntry( cHandler.getConfig(), "fitterEngineConfig/propagatorConfig/fitSampleSetConfig/fitSampleList" );
 
   // Disabling defined plots:
   LogInfo << "Removing defined plots..." << std::endl;
-  ConfigUtils::clearEntry( cHandler.getConfig(), "fitterEngineConfig/likelihoodInterfaceConfig/dataSetManagerConfig/propagatorConfig/plotGeneratorConfig" );
-  ConfigUtils::clearEntry( cHandler.getConfig(), "fitterEngineConfig/propagatorConfig/plotGeneratorConfig" );
+  GenericToolbox::Json::clearEntry( cHandler.getConfig(), "fitterEngineConfig/likelihoodInterfaceConfig/dataSetManagerConfig/propagatorConfig/plotGeneratorConfig" );
+  GenericToolbox::Json::clearEntry( cHandler.getConfig(), "fitterEngineConfig/propagatorConfig/plotGeneratorConfig" );
 
   // Defining signal samples
   JsonType toyConfig{ ConfigUtils::readConfigFile( clParser.getOptionVal<std::string>("configFile") ) };
@@ -146,33 +147,32 @@ int main(int argc, char** argv){
 
   // it will handle all the deprecated config options and names properly
   FitterEngine fitter{nullptr};
-  fitter.readConfig( GenericToolbox::Json::fetchValuePath<JsonType>( cHandler.getConfig(), "fitterEngineConfig" ) );
+  fitter.configure( GenericToolbox::Json::fetchValue<JsonType>( cHandler.getConfig(), "fitterEngineConfig" ) );
 
-  DataSetManager& dataSetManager{fitter.getLikelihoodInterface().getDataSetManager()};
-
+  // We are only interested in our MC. Data has already been used to get the post-fit error/values
   // TODO Check
-  //dataSetManager.getPropagator().setLoadAsimovData( false );
+  //fitter.getLikelihoodInterface().setForceAsimovData( true );
 
   // Disabling eigen decomposed parameters
-  dataSetManager.getPropagator().setEnableEigenToOrigInPropagate( false );
+  fitter.getLikelihoodInterface().getModelPropagator().setEnableEigenToOrigInPropagate( false );
 
   // --use-data-entry
   if( clParser.isOptionTriggered("useDataEntry") ){
     auto selectedDataEntry = clParser.getOptionVal<std::string>("useDataEntry", 0);
     // Do something better in case multiple datasets are defined
     bool isFound{false};
-    for( auto& dataSet : dataSetManager.getDataSetList() ){
+    for( auto& dataSet : fitter.getLikelihoodInterface().getDatasetList() ){
       if( GenericToolbox::isIn( selectedDataEntry, dataSet.getDataDispenserDict() ) ){
         LogWarning << "Using data entry \"" << selectedDataEntry << "\" for dataset: " << dataSet.getName() << std::endl;
         dataSet.setSelectedDataEntry( selectedDataEntry );
         isFound = true;
-      } 
-    }   
+      }
+    }
     LogThrowIf(not isFound, "Could not find data entry \"" << selectedDataEntry << "\" among defined data sets");
   }  
 
   // Sample binning using parameterSetName
-  for( auto& sample : dataSetManager.getPropagator().getSampleSet().getSampleList() ){
+  for( auto& sample : fitter.getLikelihoodInterface().getModelPropagator().getSampleSet().getSampleList() ){
 
     if( clParser.isOptionTriggered("usePreFit") ){
       sample.setName( sample.getName() + " (pre-fit)" );
@@ -193,17 +193,17 @@ int main(int argc, char** argv){
 
     // Looking for parSet
     auto foundDialCollection = std::find_if(
-        dataSetManager.getPropagator().getDialCollectionList().begin(),
-        dataSetManager.getPropagator().getDialCollectionList().end(),
+        fitter.getLikelihoodInterface().getModelPropagator().getDialCollectionList().begin(),
+        fitter.getLikelihoodInterface().getModelPropagator().getDialCollectionList().end(),
         [&](const DialCollection& dialCollection_){
           auto* parSetPtr{dialCollection_.getSupervisedParameterSet()};
           if( parSetPtr == nullptr ){ return false; }
           return ( parSetPtr->getName() == associatedParSet );
         });
     LogThrowIf(
-        foundDialCollection == dataSetManager.getPropagator().getDialCollectionList().end(),
+        foundDialCollection == fitter.getLikelihoodInterface().getModelPropagator().getDialCollectionList().end(),
         "Could not find " << associatedParSet << " among fit dial collections: "
-                          << GenericToolbox::toString(dataSetManager.getPropagator().getDialCollectionList(),
+                          << GenericToolbox::toString(fitter.getLikelihoodInterface().getModelPropagator().getDialCollectionList(),
                                                       [](const DialCollection& dialCollection_){
                                                         return dialCollection_.getTitle();
                                                       }
@@ -215,9 +215,9 @@ int main(int argc, char** argv){
   }
 
   // Load everything
-  dataSetManager.initialize();
+  fitter.getLikelihoodInterface().initialize();
 
-  Propagator& propagator{dataSetManager.getPropagator()};
+  Propagator& propagator{fitter.getLikelihoodInterface().getModelPropagator()};
 
 
   if( clParser.isOptionTriggered("dryRun") ){
@@ -232,7 +232,7 @@ int main(int argc, char** argv){
 
     // Load post-fit parameters as "prior" so we can reset the weight to this point when throwing toys
     LogWarning << std::endl << GenericToolbox::addUpDownBars("Injecting post-fit parameters...") << std::endl;
-    ObjectReader::readObject<TNamed>( fitterRootFile.get(), "FitterEngine/postFit/parState_TNamed", [&](TNamed* parState_){
+    RootUtils::ObjectReader::readObject<TNamed>( fitterRootFile.get(), "FitterEngine/postFit/parState_TNamed", [&](TNamed* parState_){
       propagator.getParametersManager().injectParameterValues( GenericToolbox::Json::readConfigJsonStr( parState_->GetTitle() ) );
       for( auto& parSet : propagator.getParametersManager().getParameterSetsList() ){
         if( not parSet.isEnabled() ){ continue; }
@@ -245,7 +245,7 @@ int main(int argc, char** argv){
 
     // Load the post-fit covariance matrix
     LogWarning << std::endl << GenericToolbox::addUpDownBars("Injecting post-fit covariance matrix...") << std::endl;
-    ObjectReader::readObject<TH2D>(
+    RootUtils::ObjectReader::readObject<TH2D>(
         fitterRootFile.get(), "FitterEngine/postFit/Hesse/hessian/postfitCovarianceOriginal_TH2D",
         [&](TH2D* hCovPostFit_){
           propagator.getParametersManager().setGlobalCovarianceMatrix(std::make_shared<TMatrixD>(hCovPostFit_->GetNbinsX(), hCovPostFit_->GetNbinsX()));
@@ -264,7 +264,7 @@ int main(int argc, char** argv){
   else{
     // appendixDict["optionName"] = "Appendix"
     // this list insure all appendices will appear in the same order
-    std::vector<std::pair<std::string, std::string>> appendixDict{
+    std::vector<GundamUtils::AppendixEntry> appendixDict{
         {"configFile", ""},
         {"fitterFile", "Fit"},
         {"nToys", "nToys"},
@@ -317,8 +317,8 @@ int main(int argc, char** argv){
     toyDataEntry.config = sample.getConfig();
     toyDataEntry.branchBinsData.resetCurrentByteOffset();
     std::vector<std::string> leafNameList{};
-    leafNameList.reserve( sample.getMcContainer().getHistogram().nBins );
-    for( int iBin = 0 ; iBin < sample.getMcContainer().getHistogram().nBins; iBin++ ){
+    leafNameList.reserve( sample.getHistogram().getNbBins() );
+    for( int iBin = 0 ; iBin < sample.getHistogram().getNbBins(); iBin++ ){
       leafNameList.emplace_back(Form("bin_%i/D", iBin));
       toyDataEntry.branchBinsData.writeRawData( double(0) );
     }
@@ -338,9 +338,9 @@ int main(int argc, char** argv){
     toyDataEntry.histogram = TH1D(
         sample.getName().c_str(),
         sample.getName().c_str(),
-        sample.getMcContainer().getHistogram().nBins,
+        sample.getHistogram().getNbBins(),
         0,
-        sample.getMcContainer().getHistogram().nBins
+        sample.getHistogram().getNbBins()
     );
   }
 
@@ -356,11 +356,11 @@ int main(int argc, char** argv){
     for( auto& toyData : ToyDataList ){
 
       toyData.branchBinsData.resetCurrentByteOffset();
-      for( int iBin = 0 ; iBin < toyData.samplePtr->getMcContainer().getHistogram().nBins ; iBin++ ){
-        double binData{ toyData.samplePtr->getMcContainer().getHistogram().binList[iBin].content };
+      for( int iBin = 0 ; iBin < toyData.samplePtr->getHistogram().getNbBins() ; iBin++ ){
+        double binData{ toyData.samplePtr->getHistogram().getBinContentList()[iBin].sumWeights };
 
         // bin volume
-        auto& bin = toyData.samplePtr->getBinning().getBinList()[iBin];
+        auto& bin = toyData.samplePtr->getHistogram().getBinContextList()[iBin].bin;
         double binVolume{1};
 
         for( auto& edges : bin.getEdgesList() ){
@@ -389,34 +389,72 @@ int main(int argc, char** argv){
   // THROWS LOOP
   /////////////////////////////////////
   LogWarning << std::endl << GenericToolbox::addUpDownBars( "Generating toys..." ) << std::endl;
+  propagator.getParametersManager().initializeStrippedGlobalCov();
 
+  // stats printing
+  GenericToolbox::Time::AveragedTimer<1> totalTimer{};
+  GenericToolbox::Time::AveragedTimer<1> throwTimer{};
+  GenericToolbox::Time::AveragedTimer<1> propagateTimer{};
+  GenericToolbox::Time::AveragedTimer<1> otherTimer{};
+  GenericToolbox::Time::AveragedTimer<1> writeTimer{};
+  GenericToolbox::TablePrinter t{};
+  std::stringstream progressSs;
   std::stringstream ss; ss << LogWarning.getPrefixString() << "Generating " << nToys << " toys...";
   for( int iToy = 0 ; iToy < nToys ; iToy++ ){
 
+    t.reset();
+    t << "Total time" << GenericToolbox::TablePrinter::NextColumn;
+    t << "Throw toys" << GenericToolbox::TablePrinter::NextColumn;
+    t << "Propagate pars" << GenericToolbox::TablePrinter::NextColumn;
+    t << "Re-normalize" << GenericToolbox::TablePrinter::NextColumn;
+    t << "Write throws" << GenericToolbox::TablePrinter::NextLine;
+
+    t << totalTimer << GenericToolbox::TablePrinter::NextColumn;
+    t << throwTimer << GenericToolbox::TablePrinter::NextColumn;
+    t << propagateTimer << GenericToolbox::TablePrinter::NextColumn;
+    t << otherTimer << GenericToolbox::TablePrinter::NextColumn;
+    t << writeTimer << GenericToolbox::TablePrinter::NextLine;
+
+    totalTimer.stop();
+    totalTimer.start();
+
     // loading...
-    GenericToolbox::displayProgressBar( iToy+1, nToys, ss.str() );
+    progressSs.str("");
+    progressSs << t.generateTableString() << std::endl;
+    progressSs << ss.str();
+    GenericToolbox::displayProgressBar( iToy+1, nToys, progressSs.str() );
 
     // Do the throwing:
-    propagator.getParametersManager().throwParametersFromGlobalCovariance();
+    throwTimer.start();
+    propagator.getParametersManager().throwParametersFromGlobalCovariance( not GundamGlobals::isDebug() );
+    throwTimer.stop();
+
+    propagateTimer.start();
     propagator.propagateParameters();
 
     if( enableStatThrowInToys ){
       for( auto& toyData : ToyDataList ){
         if( enableEventMcThrow ){
           // Take into account the finite amount of event in MC
-          toyData.samplePtr->getMcContainer().throwEventMcError();
+          toyData.samplePtr->getHistogram().throwEventMcError();
         }
         // JK: throwEventMcError() already treated each MC entry as Poisson event
         //     we don't want to throw again on weighted MC histogram
         // Asimov bin content -> toy data
-        //toyData.samplePtr->getMcContainer().throwStatError();
+        //toyData.samplePtr->getHistogram().throwStatError();
       }
     }
+    propagateTimer.stop();
 
+    otherTimer.start();
+    // TODO: parallelize this
     writeBinDataFct();
+    otherTimer.stop();
 
     // Write the branches
+    writeTimer.start();
     toyThrowTree->Fill();
+    writeTimer.stop();
   }
 
 
@@ -438,11 +476,11 @@ int main(int argc, char** argv){
 
   for( auto& toyData : ToyDataList ){
 
-    for( int iBin = 0 ; iBin < toyData.samplePtr->getMcContainer().getHistogram().nBins ; iBin++ ){
+    for( int iBin = 0 ; iBin < toyData.samplePtr->getHistogram().getNbBins() ; iBin++ ){
       iBinGlobal++;
 
-      std::string binTitle = toyData.samplePtr->getBinning().getBinList()[iBin].getSummary();
-      double binVolume = toyData.samplePtr->getBinning().getBinList()[iBin].getVolume();
+      std::string binTitle = toyData.samplePtr->getHistogram().getBinContextList()[iBin].bin.getSummary();
+      double binVolume = toyData.samplePtr->getHistogram().getBinContextList()[iBin].bin.getVolume();
 
       toyData.histogram.SetBinContent( 1+iBin, (*meanValuesVector)[iBinGlobal] );
       toyData.histogram.SetBinError( 1+iBin, TMath::Sqrt( (*globalCovMatrix)[iBinGlobal][iBinGlobal] ) );
@@ -486,9 +524,9 @@ int main(int argc, char** argv){
   propagator.propagateParameters();
 
   // manual trigger to tweak the error bars
-  propagator.getPlotGenerator().generateSampleHistograms( GenericToolbox::mkdirTFile(toyGenDir, "plots/histograms") );
+  fitter.getLikelihoodInterface().getPlotGenerator().generateSampleHistograms( GenericToolbox::mkdirTFile(toyGenDir, "plots/histograms") );
 
-  for( auto& histHolder : propagator.getPlotGenerator().getHistHolderList(0) ){
+  for( auto& histHolder : fitter.getLikelihoodInterface().getPlotGenerator().getHistHolderList(0) ){
     if( not histHolder.isData ){ continue; } // only data will print errors
 
     const ToyData* xsecDataPtr{nullptr};
@@ -512,16 +550,16 @@ int main(int argc, char** argv){
     }
   }
 
-  propagator.getPlotGenerator().generateCanvas(
-      propagator.getPlotGenerator().getHistHolderList(0),
+  fitter.getLikelihoodInterface().getPlotGenerator().generateCanvas(
+      fitter.getLikelihoodInterface().getPlotGenerator().getHistHolderList(0),
       GenericToolbox::mkdirTFile(toyGenDir, "plots/canvas")
   );
 
 
   LogInfo << "Writing event samples in TTrees..." << std::endl;
-  dataSetManager.getTreeWriter().writeSamples(
-      GenericToolbox::mkdirTFile(toyGenDir, "events"),
-      dataSetManager.getPropagator()
+  fitter.getLikelihoodInterface().writeEvents(
+      {GenericToolbox::mkdirTFile(toyGenDir, "toyGen"),
+      "events"}
   );
 
 }

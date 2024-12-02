@@ -10,14 +10,18 @@
 
 #include "GenericToolbox.Wrappers.h"
 
-#include "nlohmann/json.hpp"
 
 #include "string"
 #include "map"
 
 
 struct DataDispenserParameters{
-  bool useMcContainer{false}; // define the container to fill -> could get rid of it?
+
+  // should be load dials and request the associate variables?
+  bool useReweightEngine{false};
+  bool isData{false}; // shall fetch slpit vars?
+  size_t debugNbMaxEventsToLoad{0};
+
   std::string name{};
   std::string treePath{};
   std::string dialIndexFormula{};
@@ -28,9 +32,38 @@ struct DataDispenserParameters{
   std::map<std::string, std::string> variableDict{};
   std::vector<std::string> additionalVarsStorage{};
   std::vector<std::string> dummyVariablesList;
-  size_t debugNbMaxEventsToLoad{0};
+  std::vector<EventVarTransformLib> eventVarTransformList;
 
-  JsonType fromHistContent{};
+  struct FromHistContent{
+    bool isEnabled{false};
+    std::string rootFilePath{};
+
+    struct SampleHist{
+      std::string name{};
+      std::string hist{};
+      std::vector<std::string> axisList{};
+    };
+    std::vector<SampleHist> sampleHistList{};
+
+    SampleHist& addSampleHist(const std::string& name_){
+      for( auto& sampleHist : sampleHistList ){
+        LogThrowIf(sampleHist.name == name_, "Duplicate sample hist with name: " << name_);
+      }
+      sampleHistList.emplace_back();
+      sampleHistList.back().name = name_;
+      return sampleHistList.back();
+    }
+    SampleHist* getSampleHistPtr(const std::string& name_){
+      for( auto& sampleHist : sampleHistList ){
+        if( sampleHist.name == name_ ){ return &sampleHist; }
+      }
+      return nullptr;
+    }
+  };
+  FromHistContent fromHistContent;
+
+//  JsonType fromHistContent{};
+  JsonType overridePropagatorConfig{};
 
   [[nodiscard]] std::string getSummary() const;
 };
@@ -52,9 +85,6 @@ struct DataDispenserCache{
   std::map<std::string, std::pair<std::string, bool>> varToLeafDict; // varToLeafDict[EVENT_VAR_NAME] = {LEAF_NAME, IS_DUMMY}
 
   std::vector<std::string> varsToOverrideList; // stores the leaves names to override in the right order
-
-  // Variable transformations
-  std::vector<EventVarTransformLib> eventVarTransformList;
 
   struct ThreadSelectionResult{
     std::vector<size_t> sampleNbOfEvents;

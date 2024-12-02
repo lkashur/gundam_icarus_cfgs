@@ -22,22 +22,33 @@ option( YAMLCPP_DIR "Set custom path to yaml-cpp lib." OFF )
 
 # dev options
 option( USE_STATIC_LINKS "Use static link of libraries and apps instead of shared." OFF )
-option( DISABLE_ZLIB "Disable Zlib dependency." OFF )
 option( CXX_WARNINGS "Enable most C++ warning flags." ON )
 option( CXX_MARCH_FLAG "Enable cpu architecture specific optimisations." OFF )
 option( CMAKE_CXX_EXTENSIONS "Enable GNU extensions to C++ language (-std=gnu++14)." OFF )
+option( ENABLE_GOOGLE_TESTS "Build Google tests." OFF )
 
 
 # Reading options
 ##################
 
+# make sure the build type is upper cased
+string( TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE )
+
 # Set the default built type if it isn't already defined
 if( NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
-  cmessage( STATUS "Using default build type: Release." )
-  set( CMAKE_BUILD_TYPE Release )
+  set( CMAKE_BUILD_TYPE "RELEASE" )
+  cmessage( STATUS "Build type not set. Using default build type: RELEASE." )
+elseif( CMAKE_BUILD_TYPE STREQUAL "RELEASE" )
+  cmessage( STATUS "Build type manually specified to: RELEASE." )
+elseif( CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
+  cmessage( STATUS "Build type manually specified to: DEBUG." )
+  add_definitions( -D DEBUG_BUILD )
 else()
-  cmessage( STATUS "Using build type: ${CMAKE_BUILD_TYPE}" )
+  cmessage( WARNING "Build type not recognised: ${CMAKE_BUILD_TYPE}. Using default build type: RELEASE." )
+  set( CMAKE_BUILD_TYPE "RELEASE" )
 endif()
+
+cmessage( STATUS "Using build type: ${CMAKE_BUILD_TYPE}" )
 
 if( ENABLE_BATCH_MODE )
   cmessage( STATUS "-D ENABLE_BATCH_MODE=ON: defining appropriate compile options..." )
@@ -71,7 +82,7 @@ if( WITH_DOXYGEN )
   find_package(Doxygen)
   if( DOXYGEN_FOUND )
     # set input and output files
-    set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/doxygen/Doxygen.in)
+    set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/resources/doxygen/Doxygen.in)
     set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
 
     # request to configure the file

@@ -10,9 +10,6 @@
 
 #include <dlfcn.h>
 
-LoggerInit([]{
-  Logger::setUserHeaderStr("[Tabulated]");
-});
 
 TabulatedDialFactory::TabulatedDialFactory(const JsonType& config_) {
     auto tableConfig = GenericToolbox::Json::fetchValue<JsonType>(config_, "tableConfig");
@@ -30,8 +27,8 @@ TabulatedDialFactory::TabulatedDialFactory(const JsonType& config_) {
 
     int bins =  GenericToolbox::Json::fetchValue<int>(tableConfig, "bins", -1);
 
-    _variableNames_ = GenericToolbox::Json::fetchValue(tableConfig, "variables", _variableNames_);
-    _variables_.resize(_variableNames_.size());
+    _binningVariableNames_ = GenericToolbox::Json::fetchValue(tableConfig, "binningVariables", _binningVariableNames_);
+    _binningVariableCache_.resize(_binningVariableNames_.size());
 
     std::string expandedPath = GenericToolbox::expandEnvironmentVariables(getLibraryPath());
 
@@ -42,7 +39,7 @@ TabulatedDialFactory::TabulatedDialFactory(const JsonType& config_) {
     LogInfo << "  Bin events function:     " << getBinningFunction() << std::endl;
     {
         int i{0};
-        for (const std::string& var: getVariables()) {
+        for (const std::string& var: getBinningVariables()) {
             LogInfo << "      Variable[" << i++ << "]: " << var << std::endl;
         }
     }
@@ -68,12 +65,16 @@ TabulatedDialFactory::TabulatedDialFactory(const JsonType& config_) {
                      << std::endl;
             std::exit(EXIT_FAILURE); // Exit, not throw!
         }
+        std::vector<std::string> argv_buffer;
+        for (std::string arg : getInitializationArguments()) {
+            argv_buffer.push_back(GenericToolbox::expandEnvironmentVariables(arg));
+        }
+        std::vector<const char*> argv;
+        for (std::string& arg : argv_buffer) argv.push_back(arg.c_str());
         _initFunc_
             = reinterpret_cast<
                 int(*)(const char* name,int argc, const char* argv[], int bins)
             >(initFunc);
-        std::vector<const char*> argv;
-        for (const std::string& arg : getInitializationArguments()) argv.push_back(arg.c_str());
         int result = _initFunc_(_name_.c_str(),(int) argv.size(), argv.data(), bins);
         if (result < 1) {
             LogError << "Error calling initialization function: "
@@ -114,7 +115,6 @@ TabulatedDialFactory::TabulatedDialFactory(const JsonType& config_) {
 }
 
 void TabulatedDialFactory::updateTable(DialInputBuffer& inputBuffer) {
-    if (inputBuffer.isMasked()) return;
     _updateFunc_(_name_.c_str(),
                  _table_.data(),
                  (int) _table_.size(),
@@ -124,17 +124,20 @@ void TabulatedDialFactory::updateTable(DialInputBuffer& inputBuffer) {
 
 DialBase* TabulatedDialFactory::makeDial(const Event& event) {
     int i=0;
-    for (const std::string& varName : getVariables()) {
+    for (const std::string& varName : getBinningVariables()) {
         double v = event.getVariables().fetchVariable(varName).getVarAsDouble();
-        _variables_[i++] = v;
+        _binningVariableCache_[i++] = v;
     }
     double bin = _binningFunc_(getName().c_str(),
-                               (int) _variables_.size(), _variables_.data(),
+                               (int) _binningVariableCache_.size(),
+                               _binningVariableCache_.data(),
                                (int) _table_.size());
+
+    if (bin < 0.0) return nullptr;
 
     // Determine the bin index and the fractional part of the bin.
     int iBin = bin;
-    if (iBin < 0) iBin = 0;
+    if (iBin < 0) iBin = 0;     // Shouldn't happen, but just in case.
     if (iBin > _table_.size()-1) iBin = _table_.size()-1;
     double fracBin = bin - iBin;
     if (fracBin < 0.0) fracBin = 0.0;

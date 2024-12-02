@@ -5,58 +5,34 @@
 #ifndef GUNDAM_GUNDAM_GLOBALS_H
 #define GUNDAM_GUNDAM_GLOBALS_H
 
-#include "GenericToolbox.Thread.h"
-
-#include <TTree.h>
-#include <TChain.h>
-#include <TRandom3.h>
-
-#include <map>
 #include <mutex>
-#include <memory>
 
-#define ENUM_NAME VerboseLevel
-#define ENUM_FIELDS \
-  ENUM_FIELD(NORMAL_MODE, 0) \
-  ENUM_FIELD(MORE_PRINTOUT) \
-  ENUM_FIELD(DEBUG_TRACE) \
-  ENUM_FIELD(INLOOP_TRACE) \
-  ENUM_FIELD(DEV_TRACE)
-#include "GenericToolbox.MakeEnum.h"
 
 class GundamGlobals{
 
 public:
+  // setters
+  static void setIsDebug( bool enable){ _isDebug_ = enable; }
+  static void setLightOutputMode(bool enable_){ _lightOutputModeEnabled_ = enable_; }
+  static void setIsCacheManagerEnabled( bool enable){ _useCacheManager_ = enable; }
+  static void setIsForceCpuCalculation( bool enable){ _forceCpuCalculation_ = enable; }
+  static void setNumberOfThreads(int nbCpuThreads_){ _nbCpuThreads_ = nbCpuThreads_; }
 
-  // Setters
-  static void setEnableCacheManager(bool enable = true){ _enableCacheManager_ = enable; }
-  static void setNumberOfThreads(int threads=1){ _gundamThreads_ = threads; }
-  static void setForceDirectCalculation(bool enable=false){ _forceDirectCalculation_ = enable; }
-  static void setLightOutputMode(bool enable_){ _lightOutputMode_ = enable_; }
-  static void setDisableDialCache(bool disableDialCache_){ _disableDialCache_ = disableDialCache_; }
-  static void setVerboseLevel(VerboseLevel verboseLevel_);
-
-  // Getters
-  static int getNumberOfThreads(){ return _gundamThreads_; }
-  static bool getEnableCacheManager(){ return _enableCacheManager_; }
-  static bool getForceDirectCalculation(){ return _forceDirectCalculation_; }
-  static bool isDisableDialCache(){ return _disableDialCache_; }
-  static bool isLightOutputMode(){ return _lightOutputMode_; }
-  static VerboseLevel::EnumType getVerboseLevel(){ return _verboseLevel_.value; }
-  static std::mutex& getThreadMutex(){ return _threadMutex_; }
-  static GenericToolbox::ParallelWorker &getParallelWorker(){ return _threadPool_; }
+  // getters
+  static bool isDebug(){ return _isDebug_; }
+  static bool isLightOutputMode(){ return _lightOutputModeEnabled_; }
+  static bool isCacheManagerEnabled(){ return _useCacheManager_; }
+  static bool isForceCpuCalculation(){ return _forceCpuCalculation_; }
+  static int getNbCpuThreads(){ return _nbCpuThreads_; }
+  static std::mutex& getMutex(){ return _threadMutex_; }
 
 private:
-
-  static int _gundamThreads_;
-  static bool _disableDialCache_;
-  static bool _enableCacheManager_;
-  static bool _forceDirectCalculation_;
-  static bool _lightOutputMode_;
+  static bool _isDebug_; /* enable debug printouts for the config reading */
+  static bool _useCacheManager_; /* enable the use of the cache manager in the propagator (mainly for GPU) */
+  static bool _forceCpuCalculation_; /* force using CPU in the cache manager */
+  static bool _lightOutputModeEnabled_;
+  static int _nbCpuThreads_;
   static std::mutex _threadMutex_;
-  static VerboseLevel _verboseLevel_;
-  static GenericToolbox::ParallelWorker _threadPool_;
-
 
 };
 

@@ -6,6 +6,7 @@
 #define GUNDAM_BARLOW_BEESTON_BANFF_2022_H
 
 #include "JointProbabilityBase.h"
+#include "GundamUtils.h"
 
 #include "GenericToolbox.Map.h"
 
@@ -15,52 +16,70 @@ namespace JointProbability{
   class BarlowBeestonBanff2022 : public JointProbabilityBase {
 
   protected:
-    void readConfigImpl() override;
+    void configureImpl() override;
 
   public:
     [[nodiscard]] std::string getType() const override { return "BarlowBeestonBanff2022"; }
-    [[nodiscard]] double eval(const Sample& sample_, int bin_) const override;
+    [[nodiscard]] double eval(const SamplePair& samplePair_, int bin_) const override;
 
-    void createNominalMc(const Sample& sample_) const;
+    void createNominalMc(const Sample& modelSample_) const;
+    void printConfiguration() const;
 
-    int verboseLevel{0};
+    mutable int verboseLevel{0};
     bool throwIfInfLlh{false};
     bool allowZeroMcWhenZeroData{true};
     bool usePoissonLikelihood{false};
     bool BBNoUpdateWeights{false}; // OA 2021 bug reimplementation
+    // OA2021 and BANFF fractional error limitation is only relevent with
+    // BBNoUpdateWeights is true, and is needed to reproduce bugs when it is
+    // true.  When BBNoUpdateWeights is false, the fractional error will
+    // naturally be limited to less than 100%.  Physically, the fractional
+    // uncertainty should be less than 100% since one MC event in a bin would
+    // have 100% fractional uncertainty [under the "Gaussian" approximation,
+    // so sqrt(1.0)/1.0].  The OA2021 behavior lets the fractional error grow,
+    // but the entire likelihood became discontinuous around a predicted value
+    // of 1E-16. Setting fractionalErrorLimit to 1E+19 matches OA2021 before
+    // the discontinuity.  The BANFF behavior has the likelihood failed around
+    // 1E-154.  Setting fractionalErrorLimit to 1E+150 matchs BANFF.  In both
+    // cases, the new likelihood behaves reasonably all the way to zero.
+    double fractionalErrorLimit{1.0E+150};
+    // OA2021 bug reimplmentation (set to numeric_limits::min() to reproduce
+    // the bug).
+    double expectedValueMinimum{-1.};
+
     mutable std::map<const Sample*, std::vector<double>> nomMcUncertList{}; // OA 2021 bug reimplementation
     mutable GenericToolbox::NoCopyWrapper<std::mutex> _mutex_{}; // for creating the nomMC
   };
 
-  void BarlowBeestonBanff2022::readConfigImpl(){
-    allowZeroMcWhenZeroData = GenericToolbox::Json::fetchValue(_config_, "allowZeroMcWhenZeroData", allowZeroMcWhenZeroData);
-    usePoissonLikelihood = GenericToolbox::Json::fetchValue(_config_, "usePoissonLikelihood", usePoissonLikelihood);
-    BBNoUpdateWeights = GenericToolbox::Json::fetchValue(_config_, "BBNoUpdateWeights", BBNoUpdateWeights);
-    verboseLevel = GenericToolbox::Json::fetchValue(_config_, {{"verboseLevel"}, {"isVerbose"}}, verboseLevel);
-    throwIfInfLlh = GenericToolbox::Json::fetchValue(_config_, "throwIfInfLlh", throwIfInfLlh);
+  void BarlowBeestonBanff2022::configureImpl(){
 
-    LogInfo << "Using BarlowLLH_BANFF_OA2021 parameters:" << std::endl;
-    {
-      LogScopeIndent;
-      LogInfo << GET_VAR_NAME_VALUE(allowZeroMcWhenZeroData) << std::endl;
-      LogInfo << GET_VAR_NAME_VALUE(usePoissonLikelihood) << std::endl;
-      LogInfo << GET_VAR_NAME_VALUE(BBNoUpdateWeights) << std::endl;
-      LogInfo << GET_VAR_NAME_VALUE(verboseLevel) << std::endl;
-      LogInfo << GET_VAR_NAME_VALUE(throwIfInfLlh) << std::endl;
+    GenericToolbox::Json::fillValue(_config_, allowZeroMcWhenZeroData, "allowZeroMcWhenZeroData");
+    GenericToolbox::Json::fillValue(_config_, usePoissonLikelihood, "usePoissonLikelihood");
+    GenericToolbox::Json::fillValue(_config_, BBNoUpdateWeights, "BBNoUpdateWeights");
+    GenericToolbox::Json::fillValue(_config_, fractionalErrorLimit, "fractionalErrorLimit");
+    GenericToolbox::Json::fillValue(_config_, expectedValueMinimum, "expectedValueMinimum");
+    GenericToolbox::Json::fillValue(_config_, verboseLevel, {{"verboseLevel"},{"isVerbose"}});
+    GenericToolbox::Json::fillValue(_config_, throwIfInfLlh, "throwIfInfLlh");
+
+    // Place a hard limit on the fractional error to prevent numeric issues.
+    if( fractionalErrorLimit > 1.0E+152 ){
+      LogAlert << "Placing a hard limit on the fractional error to prevent numeric issues." << std::endl;
+      fractionalErrorLimit = 1.0E+152;
     }
+
   }
-  double BarlowBeestonBanff2022::eval(const Sample& sample_, int bin_) const {
-    double dataVal = sample_.getDataContainer().getHistogram().binList[bin_].content;
-    double predVal = sample_.getMcContainer().getHistogram().binList[bin_].content;
+  double BarlowBeestonBanff2022::eval(const SamplePair& samplePair_, int bin_) const {
+    double dataVal = samplePair_.data->getHistogram().getBinContentList()[bin_].sumWeights;
+    double predVal = samplePair_.model->getHistogram().getBinContentList()[bin_].sumWeights;
 
     {
       /// the first time we reach this point, we assume the predMC is at its nominal value
       std::lock_guard<std::mutex> g(_mutex_);
-      if( not GenericToolbox::isIn(&sample_, nomMcUncertList) ){ createNominalMc(sample_); }
+      if( not GenericToolbox::isIn((const Sample*) samplePair_.model, nomMcUncertList) ){ createNominalMc(*samplePair_.model); }
     }
 
     // it should exist past this point
-    auto& nomHistErr = nomMcUncertList[&sample_];
+    auto& nomHistErr = nomMcUncertList[samplePair_.model];
     double mcuncert{0.0};
 
     // From OA2021_Eb branch -> BANFFBinnedSample::CalcLLRContrib
@@ -88,20 +107,33 @@ namespace JointProbability{
       }
     }
     else {
-      mcuncert = sample_.getMcContainer().getHistogram().binList[bin_].error;
+      mcuncert = samplePair_.model->getHistogram().getBinContentList()[bin_].sqrtSumSqWeights;
       mcuncert *= mcuncert;
 
       if(not std::isfinite(mcuncert) or mcuncert < 0.0) {
         if( throwIfInfLlh ){
           LogError << "The mcuncert is not finite " << mcuncert << std::endl;
           LogError << "predMC bin " << bin_
-                   << " error is " << sample_.getMcContainer().getHistogram().binList[bin_].error;
+                   << " error is " << samplePair_.model->getHistogram().getBinContentList()[bin_].sqrtSumSqWeights;
           LogThrow("The mc uncertainty is not a usable number");
         }
         else{
           return std::numeric_limits<double>::infinity();
         }
       }
+    }
+
+    // Add the (broken) expected value threshold that we saw in the old
+    // likelihood. This is here to help understand the old behavior.
+    if (predVal <= expectedValueMinimum) {
+      LogAlert << "Use incorrect expectation behavior --"
+               << " predVal: " << predVal
+               << " dataVal: " << dataVal
+               << std::endl;
+      if (predVal <= 0.0 and dataVal > 0.0) {
+        return std::numeric_limits<double>::infinity();
+      }
+      return 0.0;
     }
 
     // Implementing Barlow-Beeston correction for LH calculation. The
@@ -121,9 +153,19 @@ namespace JointProbability{
 
     // Barlow-Beeston uses fractional uncertainty on MC, so sqrt(sum[w^2])/mc
     // -b/2a in quadratic equation
-    if (mcuncert > std::numeric_limits<double>::epsilon()
-        and predVal > std::numeric_limits<double>::epsilon()) {
-      double fractional = sqrt(mcuncert) / predVal;
+    if ( mcuncert > 0.0 ) {
+      // Physically, the
+      // fractional uncertainty should be less than 100% since one MC event in
+      // a bin would have 100% fractional uncertainty [under the "Gaussian"
+      // approximation, so sqrt(1.0)/1.0].  The OA2021 behavior lets the
+      // fractional error grow, but the entire likelihood became discontinuous
+      // around a predicted value of 1E-16. Setting fractionalLimit to 1E+19
+      // matches OA2021 before the discontinuity.  The BANFF behavior has the
+      // likelihood failed around 1E-154.  Setting fractionalLimit to 1E+150
+      // matchs BANFF.  In both cases, the new likelihood behaves reasonably
+      // all the way to zero.
+      double fractional = std::min( std::sqrt(mcuncert) / predVal, fractionalErrorLimit);
+
       double temp = predVal * fractional * fractional - 1;
       // b^2 - 4ac in quadratic equation
       double temp2 = temp * temp + 4 * dataVal * fractional * fractional;
@@ -163,21 +205,21 @@ namespace JointProbability{
     }
 
     double chisq = 0.0;
-    if ((predVal > 0.0) && (dataVal > 0.0)) [[likely]] {
-      if (usePoissonLikelihood) [[unlikely]] {
+    if ((predVal > 0.0) && (dataVal > 0.0)) GUNDAM_LIKELY_COMPILER_FLAG {
+      if (usePoissonLikelihood) GUNDAM_UNLIKELY_COMPILER_FLAG {
         // Not quite safe, but not used much, so don't protect
         chisq += 2.0*(predVal - dataVal + dataVal*TMath::Log( dataVal/predVal));
       }
-      else [[likely]] {
+      else GUNDAM_LIKELY_COMPILER_FLAG {
         // Barlow-Beeston likelihood.
         chisq += 2.0 * (stat + penalty);
       }
     }
     else if( predVal > 0.0 ) {
-      if (usePoissonLikelihood) [[unlikely]] {
+      if (usePoissonLikelihood) GUNDAM_UNLIKELY_COMPILER_FLAG {
         chisq += 2.0*predVal;
       }
-      else [[likely]] {
+      else GUNDAM_LIKELY_COMPILER_FLAG {
         // Barlow-Beeston likelihood
         chisq += 2.0 * (stat + penalty);
       }
@@ -197,9 +239,9 @@ namespace JointProbability{
       }
     }
 
-    if( throwIfInfLlh and not std::isfinite(chisq) ) [[unlikely]] {
+    if( throwIfInfLlh and not std::isfinite(chisq) ) GUNDAM_UNLIKELY_COMPILER_FLAG {
       LogError << "Infinite chi2: " << chisq << std::endl
-               << GET_VAR_NAME_VALUE(sample_.getName()) << std::endl
+               << GET_VAR_NAME_VALUE(samplePair_.model->getName()) << std::endl
                << GET_VAR_NAME_VALUE(bin_) << std::endl
                << GET_VAR_NAME_VALUE(predVal) << std::endl
                << GET_VAR_NAME_VALUE(dataVal) << std::endl
@@ -216,14 +258,33 @@ namespace JointProbability{
 
     return chisq;
   }
-  void BarlowBeestonBanff2022::createNominalMc(const Sample& sample_) const {
-    LogWarning << "Creating nominal MC histogram for sample \"" << sample_.getName() << "\"" << std::endl;
-    auto& nomHistErr = nomMcUncertList[&sample_];
-    nomHistErr.reserve( sample_.getMcContainer().getHistogram().nBins );
-    for( auto& bin : sample_.getMcContainer().getHistogram().binList ){
-      nomHistErr.emplace_back( bin.error );
-      LogTraceIf(verboseLevel >= 2) << sample_.getName() << ": " << bin.index << " -> " << bin.content << " / " << bin.error << std::endl;
+  void BarlowBeestonBanff2022::createNominalMc(const Sample& modelSample_) const {
+    LogWarning << "Creating nominal MC histogram for sample \"" << modelSample_.getName() << "\"" << std::endl;
+    auto& nomHistErr = nomMcUncertList[&modelSample_];
+    nomHistErr.reserve( modelSample_.getHistogram().getNbBins() );
+#if HAS_CPP_17
+    for( auto [binContent, binContext] : modelSample_.getHistogram().loop() ){
+#else
+    for( auto element : modelSample_.getHistogram().loop() ){ auto& binContent = std::get<0>(element); auto& binContext = std::get<1>(element);
+#endif
+      nomHistErr.emplace_back( binContent.sqrtSumSqWeights );
+      LogTraceIf(verboseLevel >= 2) << modelSample_.getName() << ": " << binContext.bin.getIndex() << " -> " << binContent.sumWeights << " / " << binContent.sqrtSumSqWeights << std::endl;
     }
+  }
+  void BarlowBeestonBanff2022::printConfiguration() const{
+
+    LogInfo << "Using BarlowLLH_BANFF_OA2021 parameters:" << std::endl;
+    {
+      LogScopeIndent;
+      LogInfo << GET_VAR_NAME_VALUE(allowZeroMcWhenZeroData) << std::endl;
+      LogInfo << GET_VAR_NAME_VALUE(usePoissonLikelihood) << std::endl;
+      LogInfo << GET_VAR_NAME_VALUE(BBNoUpdateWeights) << std::endl;
+      LogInfo << GET_VAR_NAME_VALUE(verboseLevel) << std::endl;
+      LogInfo << GET_VAR_NAME_VALUE(throwIfInfLlh) << std::endl;
+      LogInfo << GET_VAR_NAME_VALUE(expectedValueMinimum) << std::endl;
+      LogInfo << GET_VAR_NAME_VALUE(fractionalErrorLimit) << std::endl;
+    }
+
   }
 
 }

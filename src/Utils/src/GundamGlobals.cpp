@@ -3,26 +3,11 @@
 //
 
 #include "GundamGlobals.h"
-#include "Logger.h"
-
-#include "TRandom3.h"
-
-LoggerInit([]{
-  Logger::setUserHeaderStr("[GlobalVariables]");
-});
 
 // statics
-int GundamGlobals::_gundamThreads_{1};
-bool GundamGlobals::_disableDialCache_{false};
-bool GundamGlobals::_enableCacheManager_{false};
-bool GundamGlobals::_forceDirectCalculation_{false};
-bool GundamGlobals::_lightOutputMode_{false};
+int GundamGlobals::_nbCpuThreads_{1};
+bool GundamGlobals::_useCacheManager_{false};
+bool GundamGlobals::_isDebug_{false};
+bool GundamGlobals::_forceCpuCalculation_{false};
+bool GundamGlobals::_lightOutputModeEnabled_{false};
 std::mutex GundamGlobals::_threadMutex_;
-VerboseLevel GundamGlobals::_verboseLevel_{VerboseLevel::NORMAL_MODE};
-GenericToolbox::ParallelWorker GundamGlobals::_threadPool_;
-
-// setters
-void GundamGlobals::setVerboseLevel(VerboseLevel verboseLevel_){
-  _verboseLevel_ = verboseLevel_;
-  LogWarning << "Verbose level set to: " << _verboseLevel_.toString() << std::endl;
-}
